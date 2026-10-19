@@ -63,7 +63,7 @@ The C99 library separates corpus fitting from online sliding-window ingestion so
 
 ## Streaming Benchmark (`make bench`)
 
-Evaluating on a 10,000,000-event stream (query stride = 16 ticks) across window lengths $`N = 128`$to$`16,384`$:
+Evaluating on a 10,000,000-event stream (query stride = 16 ticks) across window lengths $`N = 128`$ to $`16,384`$:
 
 * **`ergodev_push_fast()` is 100% integer-only (zero FPU instructions):** Transition indexing uses a precomputed 1-cycle state lookup table (`step_lut`), and ring-buffer updates use pure integer increments—making per-event ingestion safe for ring-0 / kernel contexts without `XSAVE`/`FXSAVE` FPU state-save overhead and completely immune to floating-point rounding drift.
 * **Constant $`O(1)`$ latency (~2.2 ns / event):** Throughput stays pinned above **400 Million events/sec** on a single core regardless of window horizon $`N`$.
