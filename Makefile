@@ -7,6 +7,7 @@ CFLAGS  := -O3 -Wall -Wextra -Werror -pedantic -std=c99 -fPIC -Iinclude
 LDFLAGS := -lm
 
 BUILD_DIR := build
+BENCH_BIN := $(BUILD_DIR)/bench_ergodev
 LIB_SO    := $(BUILD_DIR)/libergodev.so
 LIB_A     := $(BUILD_DIR)/libergodev.a
 TEST_BIN  := $(BUILD_DIR)/test_ergodev
@@ -32,10 +33,16 @@ $(LIB_A): $(BUILD_DIR)/ergodev.o
 
 $(TEST_BIN): src/ergodev.c include/ergodev.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) src/ergodev.c $(LDFLAGS) -o $@
-
+	
 test-c: $(TEST_BIN)
 	@echo "=== Running C99 O(1) Streaming Engine Self-Test ==="
 	./$(TEST_BIN)
+	
+$(BENCH_BIN): src/bench_ergodev.c $(LIB_A) include/ergodev.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) src/bench_ergodev.c $(LIB_A) $(LDFLAGS) -o $@
+
+bench: $(BENCH_BIN)
+	./$(BENCH_BIN)
 
 test-py:
 	@echo ""
@@ -49,3 +56,4 @@ pdf:
 
 clean:
 	rm -rf $(BUILD_DIR) docs/*.aux docs/*.log docs/*.out $(PDF_OUT)
+	

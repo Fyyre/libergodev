@@ -41,6 +41,14 @@ int ergodev_init(
     ctx->lambda_2    = lambda_2;
     ctx->eta         = eta;
 
+    /* Precompute 1-cycle state transition LUT: eliminates integer div/mod in hot path */
+    for (uint32_t w = 0; w < num_words; ++w) {
+        uint32_t suffix = (w % ctx->high_pow) * m;
+        for (uint32_t s = 0; s < m; ++s) {
+            ctx->step_lut[w][s] = (uint16_t)(suffix + s);
+        }
+    }
+
     for (uint32_t i = 0; i < num_words; ++i) {
         ctx->nu[i]        = nu_ell[i];
         ctx->jump_cost[i] = jump_cost[i];
@@ -63,56 +71,16 @@ void ergodev_reset(ergodev_ctx_t *ctx) {
 
 int ergodev_push(ergodev_ctx_t *ctx, uint8_t symbol) {
     if (symbol >= ctx->m) symbol %= (uint8_t)ctx->m;
-
-    /* Warm-up phase: accumulating first (ell - 1) symbols */
-    if (ctx->sym_filled < ctx->ell - 1U) {
-        ctx->rolling_word = ctx->rolling_word * ctx->m + symbol;
-        ctx->sym_filled++;
-        return 0;
-    }
-
-    /* Form incoming ell-word index in base m */
-    if (ctx->sym_filled == ctx->ell - 1U) {
-        ctx->rolling_word = ctx->rolling_word * ctx->m + symbol;
-    } else {
-        ctx->rolling_word = (ctx->rolling_word % ctx->high_pow) * ctx->m + symbol;
-    }
-    uint16_t w_in = (uint16_t)ctx->rolling_word;
-
-    /* If the window of N' words is already full, evict the oldest ell-word in O(1) */
-    if (ctx->sym_filled >= ctx->window_len) {
-        uint16_t w_out = ctx->word_ring[ctx->word_head];
-        ctx->counts[w_out]--;
-        ctx->energy_sum -= ctx->jump_cost[w_out];
-    } else {
-        ctx->sym_filled++;
-    }
-
-    /* Insert incoming ell-word into ring buffer and histogram in O(1) */
-    ctx->word_ring[ctx->word_head] = w_in;
-    ctx->word_head++;
-    if (ctx->word_head == ctx->num_windows) {
-        ctx->word_head = 0U;
-    }
-
-    ctx->counts[w_in]++;
-    ctx->energy_sum += ctx->jump_cost[w_in];
-
-    /* Periodically recompute exact energy sum on wrap-around to prevent FP drift */
-    if (ctx->word_head == 0U && ctx->sym_filled >= ctx->window_len) {
-        double exact_sum = 0.0;
-        for (uint32_t w = 0; w < ctx->num_words; ++w) {
-            exact_sum += (double)ctx->counts[w] * ctx->jump_cost[w];
-        }
-        ctx->energy_sum = exact_sum;
-    }
-
-    return (ctx->sym_filled >= ctx->window_len) ? 1 : 0;
+    return ergodev_push_fast(ctx, symbol);
 }
 
 double ergodev_energy(const ergodev_ctx_t *ctx) {
     if (ctx->sym_filled < ctx->window_len) return 0.0;
-    return ctx->energy_sum / (double)ctx->num_windows;
+    double sum = 0.0;
+    for (uint32_t w = 0; w < ctx->num_words; ++w) {
+        sum += (double)ctx->counts[w] * ctx->jump_cost[w];
+    }
+    return sum / (double)ctx->num_windows;
 }
 
 double ergodev_defect(const ergodev_ctx_t *ctx) {
@@ -134,7 +102,7 @@ double ergodev_score_sinkhorn(
     double u[ERGODEV_MAX_WORDS];
     double v[ERGODEV_MAX_WORDS];
 
-    /* Check for exact match (W_1 = 0) and build smoothed empirical marginal */
+    /* Check for exact match (W_1 = 0) and build empirical marginal */
     double l1_diff = 0.0;
     for (uint32_t i = 0; i < W; ++i) {
         mu[i] = (double)ctx->counts[i] * inv_n;
@@ -192,6 +160,7 @@ double ergodev_score_sinkhorn(
     return es;
 }
 
+#ifndef ERGODEV_NO_MAIN
 /* =========================================================================
  * Built-in Self-Test: Reproduces Section 9 Worked Chain in O(1) Streaming
  * ========================================================================= */
@@ -265,3 +234,4 @@ int main(void) {
 
     return 0;
 }
+#endif /* ERGODEV_NO_MAIN */
