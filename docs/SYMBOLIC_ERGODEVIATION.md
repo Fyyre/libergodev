@@ -1,6 +1,6 @@
 # Non-Asymptotic Symbolic Ergodeviation
 
-### Fyyre (James) - fyyre@fyyre.net
+### Fyyre (James J.) - fyyre@fyyre.net
 
 ## Status
 
@@ -555,19 +555,45 @@ Row masses are \(1/4\) and column masses reproduce \(\nu\). The cost is
 
 Hence \(W_1 = 3/4\) and \(\mathcal{E}_S = (3/4)\cdot(3/2) = 9/8\).
 
-**Local jitter at scale \(1/10\).** Each symbol is retained with probability \(9/10\) and moved to a neighbor otherwise, the two neighbors of state 1 splitting the mass \(1/10\). The transition kernel \(K\) satisfies \(qK = q\) and \(K\psi = \tfrac{9}{10}\psi\). Because the pushed 1-marginal is still \(q\), the pushed symbol entropy is still \(3/2\) bits and \(\mathbb{E}[\psi(S'_t)^2] = \tfrac14\). Under \(\nu\), the four corner pairs \((0,0),(2,2),(0,2),(2,0)\) all have mass \(1/40\), so \(\mathbb{E}_\nu[\psi(S_0)\psi(S_1)] = 0\) and hence
+**Local jitter at scale \(1/10\).** Each symbol is retained with probability \(9/10\) and moved to a neighbor otherwise, the two neighbors of state 1 splitting the mass \(1/10\). The transition kernel
 
-\[\Delta(\nu^K) = 2\,\mathbb{E}[\psi(S'_0)^2] - 2\bigl(\tfrac{9}{10}\bigr)^2 \mathbb{E}_\nu[\psi(S_0)\psi(S_1)] = \frac12.\]
+\[
+K = \begin{pmatrix} 9/10 & 1/10 & 0 \\ 1/20 & 9/10 & 1/20 \\ 0 & 1/10 & 9/10 \end{pmatrix}
+\]
 
-Thus \(\Delta(\nu^K) = \lambda_2 = 1/2\) and \(\mathrm{defect}(\Delta(\nu^K)) = 0\) hold identically in exact arithmetic. The pushed pair law \(\nu^K_2 = K^\top \nu_2 K\) has excess \(\nu^K_2 - \nu_2\) equal to \(+9/1000\) on each of the four corners \((0,0),(0,2),(2,0),(2,2)\), \(-27/2000\) on each of the four edges \((0,1),(1,0),(1,2),(2,1)\), and \(+9/500\) on \((1,1)\). Dual witness
+satisfies \(qK = q\) and \(K\psi = \tfrac{9}{10}\psi\). Because the pushed 1-marginal is still \(q\), the pushed symbol entropy is still \(3/2\) bits and \(\mathbb{E}[\psi(S'_t)^2] = \tfrac14\). Under \(\nu\), the four corner pairs \((0,0),(2,2),(0,2),(2,0)\) all have mass \(1/40\), so \(\mathbb{E}_\nu[\psi(S_0)\psi(S_1)] = 0\) and hence
 
-\[f = \begin{pmatrix} 1/2 & 0 & 1/2 \\ 0 & 1/2 & 0 \\ 1/2 & 0 & 1/2 \end{pmatrix}\]
+\[
+\Delta(\nu^K)
+=
+2\,\mathbb{E}[\psi(S'_0)^2] - 2\bigl(\tfrac{9}{10}\bigr)^2 \mathbb{E}_\nu[\psi(S_0)\psi(S_1)]
+=
+\frac12.
+\]
 
-has adjacent horizontal and vertical differences all equal to \(1/2\), so it is 1-Lipschitz, and
+Thus \(\Delta(\nu^K) = \lambda_2 = 1/2\) and \(\mathrm{defect}(\Delta(\nu^K)) = 0\) hold identically in exact arithmetic. The pushed pair law \(\nu^K_2 = K^\top \nu_2 K\) has excess \(\nu^K_2 - \nu_2\) equal to \(+27/2000\) on each of the four corners \((0,0),(0,2),(2,0),(2,2)\), \(+27/500\) on \((1,1)\), and \(-27/1000\) on each of the four edge pairs \((0,1),(1,0),(1,2),(2,1)\). Dual witness
 
-\[\sum f\,d(\nu^K_2 - \nu_2) = 4 \cdot \frac{9}{1000} \cdot \frac12 + \frac{9}{500} \cdot \frac12 = \frac{27}{1000} \quad\text{plus shifting } f_{(1,0)}, f_{(2,1)}\]
+\[
+f = \begin{pmatrix}
+1/2 & 0 & 1/2 \\
+0 & 1/2 & 0 \\
+1/2 & 0 & 1/2
+\end{pmatrix}
+\]
 
-(or directly via the transport LP on the nine words, which achieves exact rational optimum \(W_1 = 27/500 = 0.054\) with primal-dual residual \(0\)). Hence \(\mathcal{E}_S = 27/500 = 0.054\), sitting an order of magnitude below every structured score in the table.
+has adjacent horizontal and vertical differences all equal to \(1/2\), so it is 1-Lipschitz. It assigns \(1/2\) to every surplus state and \(0\) to every deficit state, giving
+
+\[
+\sum f\,d(\nu^K_2 - \nu_2)
+=
+\left(4\cdot\frac{27}{2000} + \frac{27}{500}\right)\cdot\frac12
+=
+\frac{27}{500}
+=
+0.054.
+\]
+
+The matching coupling leaves \(\min(\nu^K_2(w), \nu_2(w))\) in place and moves the surplus along six vertical edges of length \(1/2\): \(27/2000\) each from \((0,0)\) and \((0,2)\) onto \((0,1)\), \(27/2000\) each from \((2,0)\) and \((2,2)\) onto \((2,1)\), and \(27/1000\) each from \((1,1)\) onto \((1,0)\) and \((1,2)\), at total cost \(\tfrac{27}{250}\cdot\tfrac12 = \tfrac{27}{500} = 0.054\). Hence \(W_1 = 27/500\) and \(\mathcal{E}_S = 27/500 = 0.054\), sitting an order of magnitude below every structured score in the table.
 
 ### 9.3. What the table separates
 

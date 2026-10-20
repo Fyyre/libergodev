@@ -32,13 +32,13 @@
 \newcommand{\Cov}{\mathrm{Cov}}
 
 \title{Non-Asymptotic Symbolic Ergodeviation}
-\author{Fyyre (James) \\ \texttt{fyyre@fyyre.net}}
+\author{Fyyre (James J.) \\ \texttt{fyyre@fyyre.net}}
 \date{\today}
 
 \begin{document}
 
 \begin{abstract}
-Classical dynamical and information-theoretic invariants---including Shannon entropy rate, Kolmogorov--Sinai entropy, topological entropy, Lyapunov exponents, correlation dimension, and Lempel--Ziv complexity---either require asymptotic infinite-horizon limits or fail to distinguish benign local metric jitter from structured non-ergodic drift on finite windows. We specify and analyze a finite-window composite functional, \emph{Symbolic Ergodeviation} ($\ES$), combining the $p$-Wasserstein distance between empirical and reference $\ell$-word marginals with a one-sided Dirichlet energy defect of the reference Rauzy graph's Fiedler vector. We prove that natural two-sided Fiedler ratios and empirical visit-graph Laplacians fail on finite orbits, establish exact zero-set, local-jitter stability, and non-asymptotic Azuma concentration bounds under Dobrushin contraction, bound the spectral perturbation of estimated baselines via the Davis--Kahan $\sin\theta$ theorem, and certify exact rational primal--dual separation on a finite-state Markov chain.
+Classical dynamical and information-theoretic invariants---including Shannon entropy rate, Kolmogorov--Sinai entropy, topological entropy, Lyapunov exponents, correlation dimension, and Lempel--Ziv complexity---either require asymptotic infinite-horizon limits or fail to distinguish benign local metric jitter from structured non-ergodic drift on finite windows. We specify and analyze a finite-window composite functional, \emph{Symbolic Ergodeviation} ($\ES$), combining the $p$-Wasserstein distance between empirical and reference $\ell$-word marginals with a one-sided Dirichlet energy defect of the reference Rauzy graph's Fiedler vector. We prove that natural two-sided Fiedler ratios and empirical visit-graph Laplacians fail on finite orbits, establish exact zero-set, local-jitter stability, and non-asymptotic Azuma concentration bounds under Dobrushin contraction, bound the spectral perturbation of estimated baselines via the Davis--Kahan $\sin\theta$ theorem, and certify exact rational primal--dual separation across all five benchmark regimes on a finite-state Markov chain.
 \end{abstract}
 
 \maketitle
@@ -51,7 +51,7 @@ The ingredients used here are standard: a physical (SRB) measure and its symboli
 
 A second formula, the two-sided ratio of Fiedler energies, looks equally plausible from the phrase ``penalized by algebraic connectivity'' and is rejected in Section~\ref{sec:bad-penalties}. On a deterministic rare orbit it shrinks a transport cost of $4/5$ down to $4/17$.
 
-Population values in the worked example are exact rational numbers, certified by an explicit coupling and a $1$-Lipschitz dual witness. Monte Carlo numbers are labeled as such and come from \texttt{scratch/verify\_es.py}.
+All five population values in the worked example are exact rational numbers, each certified by an explicit primal coupling and a $1$-Lipschitz dual witness. Monte Carlo numbers are labeled as such and come from \texttt{scratch/verify\_es.py}.
 
 \section{Claim}\label{sec:claim}
 
@@ -587,7 +587,11 @@ Row masses are $1/4$ and column masses reproduce $\nu$. The cost is
 \]
 Hence $W_1 = 3/4$ and $\ES = (3/4)\cdot(3/2) = 9/8$.
 
-\medskip\noindent\textbf{Local jitter at scale $1/10$.} Each symbol is retained with probability $9/10$ and moved to a neighbor otherwise, the two neighbors of state $1$ splitting the mass $1/10$. The transition kernel $K$ satisfies $qK = q$ and $K\psi = \tfrac{9}{10}\psi$. Because the pushed $1$-marginal is still $q$, the pushed symbol entropy is still $3/2$~bits and $\mathbb{E}[\psi(S'_t)^2] = \tfrac14$. Under $\nu$, the four corner pairs $(0,0),(2,2),(0,2),(2,0)$ all have mass $1/40$, so $\mathbb{E}_\nu[\psi(S_0)\psi(S_1)] = 0$ and hence
+\medskip\noindent\textbf{Local jitter at scale $1/10$.} Each symbol is retained with probability $9/10$ and moved to a neighbor otherwise, the two neighbors of state $1$ splitting the mass $1/10$. The transition kernel
+\[
+K = \begin{pmatrix} 9/10 & 1/10 & 0 \\ 1/20 & 9/10 & 1/20 \\ 0 & 1/10 & 9/10 \end{pmatrix}
+\]
+satisfies $qK = q$ and $K\psi = \tfrac{9}{10}\psi$. Because the pushed $1$-marginal is still $q$, the pushed symbol entropy is still $3/2$~bits and $\mathbb{E}[\psi(S'_t)^2] = \tfrac14$. Under $\nu$, the four corner pairs $(0,0),(2,2),(0,2),(2,0)$ all have mass $1/40$, so $\mathbb{E}_\nu[\psi(S_0)\psi(S_1)] = 0$ and hence
 \[
 \Delta(\nu^K)
 =
@@ -595,7 +599,25 @@ Hence $W_1 = 3/4$ and $\ES = (3/4)\cdot(3/2) = 9/8$.
 =
 \frac12.
 \]
-Thus $\Delta(\nu^K) = \lambda_2 = 1/2$ and $\defect(\Delta(\nu^K)) = 0$ hold identically in exact arithmetic. Solving the transport LP on the nine words in exact rational arithmetic returns $W_1(\nu^K_2, \nu_2) = 27/500 = 0.054$ with zero primal--dual gap, so $\ES = 27/500 = 0.054$. It sits an order of magnitude below every structured score in the table.
+Thus $\Delta(\nu^K) = \lambda_2 = 1/2$ and $\defect(\Delta(\nu^K)) = 0$ hold identically in exact arithmetic. The pushed pair law $\nu^K_2 = K^\top \nu_2 K$ has excess $\nu^K_2 - \nu_2$ equal to $+27/2000$ on each of the four corners $(0,0),(0,2),(2,0),(2,2)$, $+27/500$ on $(1,1)$, and $-27/1000$ on each of the four edge pairs $(0,1),(1,0),(1,2),(2,1)$. Dual witness
+\[
+f = \begin{pmatrix}
+1/2 & 0 & 1/2 \\
+0 & 1/2 & 0 \\
+1/2 & 0 & 1/2
+\end{pmatrix}
+\]
+has adjacent horizontal and vertical differences all equal to $1/2$, so it is $1$-Lipschitz. It assigns $1/2$ to every surplus state and $0$ to every deficit state, giving
+\[
+\sum f\,d(\nu^K_2 - \nu_2)
+=
+\left(4\cdot\frac{27}{2000} + \frac{27}{500}\right)\cdot\frac12
+=
+\frac{27}{500}
+=
+0.054.
+\]
+The matching coupling leaves $\min(\nu^K_2(w), \nu_2(w))$ in place and moves the surplus along six vertical edges of length $1/2$: $27/2000$ each from $(0,0)$ and $(0,2)$ onto $(0,1)$, $27/2000$ each from $(2,0)$ and $(2,2)$ onto $(2,1)$, and $27/1000$ each from $(1,1)$ onto $(1,0)$ and $(1,2)$, at total cost $\tfrac{27}{250}\cdot\tfrac12 = \tfrac{27}{500} = 0.054$. Hence $W_1 = 27/500$ and $\ES = 27/500 = 0.054$, sitting an order of magnitude below every structured score in the table.
 
 \subsection{What the table separates}
 

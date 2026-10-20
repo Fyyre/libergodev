@@ -71,20 +71,20 @@ Evaluating on a 10,000,000-event stream (query stride = 16 ticks) across window 
 ```text
 Window N   | Method                 | Throughput   | Latency    | Relative Speed
 ---------------------------------------------------------------------------------------
-N = 128    | Naive Window Rescan    |   181.2 M/s  |   5.52 ns  | [######                      ]
-N = 128    | libergodev O(1) Ring   |   393.8 M/s  |   2.54 ns  | [#############               ] (2.2x faster)
+N = 128    | Naive Window Rescan    |   203.7 M/s  |   4.91 ns  | [#######                     ]
+N = 128    | libergodev O(1) Ring   |   288.3 M/s  |   3.47 ns  | [##########                  ] (1.4x faster)
 ---------------------------------------------------------------------------------------
-N = 512    | Naive Window Rescan    |    52.9 M/s  |  18.90 ns  | [#                           ]
-N = 512    | libergodev O(1) Ring   |   410.1 M/s  |   2.44 ns  | [##############              ] (7.7x faster)
+N = 512    | Naive Window Rescan    |    77.8 M/s  |  12.85 ns  | [##                          ]
+N = 512    | libergodev O(1) Ring   |   342.8 M/s  |   2.92 ns  | [###########                 ] (4.4x faster)
 ---------------------------------------------------------------------------------------
-N = 2048   | Naive Window Rescan    |    13.7 M/s  |  73.07 ns  | [#                           ]
-N = 2048   | libergodev O(1) Ring   |   416.5 M/s  |   2.40 ns  | [##############              ] (30.4x faster)
+N = 2048   | Naive Window Rescan    |    21.3 M/s  |  46.95 ns  | [#                           ]
+N = 2048   | libergodev O(1) Ring   |   347.2 M/s  |   2.88 ns  | [############                ] (16.3x faster)
 ---------------------------------------------------------------------------------------
-N = 8192   | Naive Window Rescan    |     3.5 M/s  | 288.45 ns  | [#                           ]
-N = 8192   | libergodev O(1) Ring   |   412.0 M/s  |   2.43 ns  | [##############              ] (118.8x faster)
+N = 8192   | Naive Window Rescan    |     5.4 M/s  | 184.93 ns  | [#                           ]
+N = 8192   | libergodev O(1) Ring   |   335.9 M/s  |   2.98 ns  | [###########                 ] (62.1x faster)
 ---------------------------------------------------------------------------------------
-N = 16384  | Naive Window Rescan    |     1.7 M/s  | 574.17 ns  | [#                           ]
-N = 16384  | libergodev O(1) Ring   |   458.8 M/s  |   2.18 ns  | [################            ] (263.4x faster)
+N = 16384  | Naive Window Rescan    |     2.7 M/s  | 372.45 ns  | [#                           ]
+N = 16384  | libergodev O(1) Ring   |   368.2 M/s  |   2.72 ns  | [############                ] (137.1x faster)
 ---------------------------------------------------------------------------------------
 ```
 

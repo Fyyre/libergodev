@@ -22,23 +22,22 @@ typedef struct {
 
     double   lambda_2;
     double   eta;
+    double   sinkhorn_reg;
+    int      use_log_sinkhorn;
 
     double   nu[ERGODEV_MAX_WORDS];
     double   jump_cost[ERGODEV_MAX_WORDS];
     double   dist_mat[ERGODEV_MAX_WORDS][ERGODEV_MAX_WORDS];
     double   gibbs_k[ERGODEV_MAX_WORDS][ERGODEV_MAX_WORDS];
 
-    /* 1-cycle state transition LUT: step_lut[w][s] = ((w % m^(ell-1)) * m) + s
-     * Eliminates all integer division/modulo instructions from the hot loop! */
     uint16_t step_lut[ERGODEV_MAX_WORDS][ERGODEV_MAX_ALPHABET];
-
     uint16_t word_ring[ERGODEV_MAX_WINDOW];
     uint32_t counts[ERGODEV_MAX_WORDS];
 
     uint32_t sym_filled;
+    uint32_t active_words;
     uint32_t word_head;
     uint32_t rolling_word;
-    double   energy_sum;
 } ergodev_ctx_t;
 
 int ergodev_init(
@@ -55,12 +54,29 @@ int ergodev_init(
 );
 
 void ergodev_reset(ergodev_ctx_t *ctx);
-int  ergodev_push(ergodev_ctx_t *ctx, uint8_t symbol);
 
-/* Hot-path inline version: 100% integer operations (zero FPU instructions).
- * Safe for kernel-mode / no-FPU contexts and eliminates FP accumulator latency. */
+/* Returns:
+ *   1 if symbol accepted and window of length N is full,
+ *   0 if symbol accepted and window is still warming up (< N symbols),
+ *  -1 if ctx is NULL or symbol >= ctx->m (state is left unmodified). */
 static inline int ergodev_push_fast(ergodev_ctx_t *ctx, uint8_t symbol) {
-    uint16_t w_in = ctx->step_lut[ctx->rolling_word][symbol];
+    if (__builtin_expect(!ctx || (uint32_t)symbol >= ERGODEV_MAX_ALPHABET || (uint32_t)symbol >= ctx->m, 0)) {
+        return -1;
+    }
+
+    /* Warm-up before first ell-word is complete */
+    if (__builtin_expect(ctx->sym_filled < ctx->ell - 1U, 0)) {
+        ctx->rolling_word = ctx->rolling_word * ctx->m + (uint32_t)symbol;
+        ctx->sym_filled++;
+        return 0;
+    }
+
+    uint16_t w_in;
+    if (__builtin_expect(ctx->sym_filled == ctx->ell - 1U, 0)) {
+        w_in = (uint16_t)(ctx->rolling_word * ctx->m + (uint32_t)symbol);
+    } else {
+        w_in = ctx->step_lut[ctx->rolling_word][symbol];
+    }
     ctx->rolling_word = w_in;
 
     if (__builtin_expect(ctx->sym_filled >= ctx->window_len, 1)) {
@@ -75,18 +91,19 @@ static inline int ergodev_push_fast(ergodev_ctx_t *ctx, uint8_t symbol) {
     }
 
     ctx->sym_filled++;
-    if (ctx->sym_filled >= ctx->ell) {
-        uint32_t head = ctx->word_head;
-        ctx->word_ring[head] = w_in;
-        ctx->counts[w_in]++;
-        head++;
-        ctx->word_head = (head == ctx->num_windows) ? 0U : head;
-    }
+    uint32_t head = ctx->word_head;
+    ctx->word_ring[head] = w_in;
+    ctx->counts[w_in]++;
+    ctx->active_words++;
+    head++;
+    ctx->word_head = (head == ctx->num_windows) ? 0U : head;
     return (ctx->sym_filled >= ctx->window_len) ? 1 : 0;
 }
 
+int    ergodev_push(ergodev_ctx_t *ctx, uint8_t symbol);
 double ergodev_energy(const ergodev_ctx_t *ctx);
 double ergodev_defect(const ergodev_ctx_t *ctx);
+double ergodev_l1_drift(const ergodev_ctx_t *ctx);
 
 double ergodev_score_sinkhorn(
     const ergodev_ctx_t *ctx,
