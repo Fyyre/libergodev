@@ -14,7 +14,7 @@ static uint64_t now_ns(void) {
 }
 
 /* Naive stateless approach: Rescans the N-symbol window from scratch at each query
- * to build the word histogram and Fiedler energy before scoring. */
+ * to build the word histogram before evaluating the pre-filter and Sinkhorn W_1. */
 static double naive_rescan_and_score(
     ergodev_ctx_t *scratch_ctx,
     const uint8_t *stream,
@@ -25,20 +25,22 @@ static double naive_rescan_and_score(
     uint32_t num_pairs = win_len - 1U;
     const uint8_t *win = stream + pos - win_len + 1U;
 
-    double e_sum = 0.0;
     for (uint32_t i = 0; i < num_pairs; ++i) {
         uint32_t w = (uint32_t)win[i] * 3U + (uint32_t)win[i + 1U];
         scratch_ctx->counts[w]++;
-        e_sum += scratch_ctx->jump_cost[w];
     }
-    scratch_ctx->sym_filled = win_len;
-    scratch_ctx->energy_sum = e_sum;
+    scratch_ctx->sym_filled   = win_len;
+    scratch_ctx->active_words = num_pairs;
 
+    /* By Lemma 8.1, W_1 <= (D/2) * ||\hat\mu - \nu||_1.
+     * Checking both Fiedler defect AND L1 drift guarantees high-energy anomalies
+     * like Alternation (defect = 0, L1 = 1.90, W_1 = 0.80) always trigger Sinkhorn. */
     double def = ergodev_defect(scratch_ctx);
-    if (def > 0.25) {
+    double l1  = ergodev_l1_drift(scratch_ctx);
+    if (def > 0.25 || l1 > 0.35) {
         return ergodev_score_sinkhorn(scratch_ctx, 15, NULL, NULL);
     }
-    return def;
+    return 0.5 * l1 * (1.0 + scratch_ctx->eta * def);
 }
 
 static void print_bar(double mops, double max_mops) {
@@ -57,31 +59,6 @@ int main(void) {
     const size_t NUM_EVENTS = 10000000ULL;
     const uint32_t EVAL_STRIDE = 16U;
 
-    uint8_t *stream = (uint8_t *)malloc(NUM_EVENTS);
-    if (!stream) return 1;
-
-    /* Generate stationary baseline stream + periodic one-sided anomaly bursts */
-    uint32_t rng = 0xC0FFEEU;
-    uint8_t state = 1U;
-    for (size_t i = 0; i < NUM_EVENTS; ++i) {
-        rng ^= rng << 13;
-        rng ^= rng >> 17;
-        rng ^= rng << 5;
-        if ((i % 1000000ULL) > 995000ULL) {
-            /* Anomaly burst: confined to one side {0, 1} */
-            stream[i] = (uint8_t)(rng & 1U);
-        } else {
-            /* Approximate baseline transitions */
-            uint32_t r = rng % 10U;
-            if (state == 1U) {
-                state = (r < 4U) ? 0U : ((r < 8U) ? 2U : 1U);
-            } else {
-                state = (r < 8U) ? 1U : ((r == 8U) ? 0U : 2U);
-            }
-            stream[i] = state;
-        }
-    }
-
     const double nu_2[9] = {
         1.0/40.0, 1.0/5.0,  1.0/40.0,
         1.0/5.0,  1.0/10.0, 1.0/5.0,
@@ -99,6 +76,58 @@ int main(void) {
         }
     }
 
+    ergodev_ctx_t ctx;
+    ergodev_ctx_t scratch_ctx;
+
+    /* Sanity check: Verify the pre-filter does not mask zero-defect Alternation (0.80) */
+    uint8_t alt_buf[129];
+    ergodev_init(&ctx, 3, 2, 129, 0.5, 1.0, nu_2, jump_cost, dist_mat, 0.005);
+    ergodev_init(&scratch_ctx, 3, 2, 129, 0.5, 1.0, nu_2, jump_cost, dist_mat, 0.005);
+    for (uint32_t t = 0; t < 129; ++t) {
+        alt_buf[t] = (t & 1U) ? 2U : 0U;
+        ergodev_push_fast(&ctx, alt_buf[t]);
+    }
+    double alt_naive = naive_rescan_and_score(&scratch_ctx, alt_buf, 128, 129);
+    double alt_def   = ergodev_defect(&ctx);
+    double alt_l1    = ergodev_l1_drift(&ctx);
+    double alt_ergo  = (alt_def > 0.25 || alt_l1 > 0.35)
+                     ? ergodev_score_sinkhorn(&ctx, 200, NULL, NULL)
+                     : 0.5 * alt_l1 * (1.0 + ctx.eta * alt_def);
+    if (fabs(alt_naive - 0.80) > 0.02 || fabs(alt_ergo - 0.80) > 0.01) {
+        fprintf(stderr, "FAIL: Alternation pre-filter check failed (naive=%.4f, ergo=%.4f)\n",
+                alt_naive, alt_ergo);
+        return EXIT_FAILURE;
+    }
+
+    uint8_t *stream = (uint8_t *)malloc(NUM_EVENTS);
+    if (!stream) return EXIT_FAILURE;
+
+    /* Generate stationary baseline stream + periodic structured anomaly bursts */
+    uint32_t rng = 0xC0FFEEU;
+    uint8_t state = 1U;
+    for (size_t i = 0; i < NUM_EVENTS; ++i) {
+        rng ^= rng << 13;
+        rng ^= rng >> 17;
+        rng ^= rng << 5;
+        uint32_t phase = (uint32_t)(i % 1000000ULL);
+        if (phase > 997500ULL) {
+            /* Anomaly burst A: Rare-cut alternation 0 <-> 2 (defect = 0, W_1 = 0.80) */
+            stream[i] = (uint8_t)((i & 1ULL) ? 2U : 0U);
+        } else if (phase > 995000ULL) {
+            /* Anomaly burst B: One-sided submanifold {0, 1} (defect = 0.5, E_S = 1.125) */
+            stream[i] = (uint8_t)(rng & 1U);
+        } else {
+            /* Baseline Markov chain transitions */
+            uint32_t r = rng % 10U;
+            if (state == 1U) {
+                state = (r < 4U) ? 0U : ((r < 8U) ? 2U : 1U);
+            } else {
+                state = (r < 8U) ? 1U : ((r == 8U) ? 0U : 2U);
+            }
+            stream[i] = state;
+        }
+    }
+
     const uint32_t windows[] = { 128U, 512U, 2048U, 8192U, 16384U };
     const size_t num_w = sizeof(windows) / sizeof(windows[0]);
 
@@ -110,8 +139,6 @@ int main(void) {
     printf("---------------------------------------------------------------------------------------\n");
 
     volatile double sink = 0.0;
-    ergodev_ctx_t ctx;
-    ergodev_ctx_t scratch_ctx;
 
     for (size_t w_idx = 0; w_idx < num_w; ++w_idx) {
         uint32_t N = windows[w_idx];
@@ -138,15 +165,24 @@ int main(void) {
             int ready = ergodev_push_fast(&ctx, stream[i]);
             if (ready && (((i - (N - 1U)) & (EVAL_STRIDE - 1U)) == 0U)) {
                 double def = ergodev_defect(&ctx);
-                if (def > 0.25) {
+                double l1  = ergodev_l1_drift(&ctx);
+                if (def > 0.25 || l1 > 0.35) {
                     acc_ergo += ergodev_score_sinkhorn(&ctx, 15, NULL, NULL);
                 } else {
-                    acc_ergo += def;
+                    acc_ergo += 0.5 * l1 * (1.0 + ctx.eta * def);
                 }
             }
         }
         uint64_t dt_ergo = now_ns() - t1;
         sink += acc_ergo;
+
+        /* Verify both methods produced identical accumulated scores across all 10M events */
+        if (fabs(acc_naive - acc_ergo) > 1e-6) {
+            fprintf(stderr, "FAIL [N=%u]: Score mismatch between naive (%.6f) and streaming (%.6f)\n",
+                    N, acc_naive, acc_ergo);
+            free(stream);
+            return EXIT_FAILURE;
+        }
 
         double mops_ergo = (double)NUM_EVENTS / ((double)dt_ergo * 1e-3);
         double ns_ergo   = (double)dt_ergo / (double)NUM_EVENTS;
