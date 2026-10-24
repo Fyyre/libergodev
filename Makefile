@@ -47,7 +47,7 @@ bench: $(BENCH_BIN)
 test-py:
 	@echo ""
 	@echo "=== Running Python Exact Rational & Monte Carlo Verifier ==="
-	$(PYTHON) scratch/verify_es.py
+	$(PYTHON) python/verify_es.py
 
 check: test-c test-py
 

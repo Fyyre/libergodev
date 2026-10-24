@@ -8,8 +8,8 @@
 extern "C" {
 #endif
 
-#define ERGODEV_MAX_ALPHABET 16U
-#define ERGODEV_MAX_WORDS    64U
+#define ERGODEV_MAX_ALPHABET 32U
+#define ERGODEV_MAX_WORDS    128U
 #define ERGODEV_MAX_WINDOW   16384U
 
 typedef struct {
