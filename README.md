@@ -70,22 +70,26 @@ Evaluating on a 10,000,000-event stream (query stride = 16 ticks) across window 
 * **Constant $`O(1)`$ latency (~2.2 ns / event):** Throughput stays pinned above **400 Million events/sec** on a single core regardless of window horizon $`N`$.
 
 ```text
+=======================================================================================
+  LIBERGODEV STREAMING BENCHMARK: 10,000,000 Events (Query Stride = 16 ticks)
+=======================================================================================
+
 Window N   | Method                 | Throughput   | Latency    | Relative Speed
 ---------------------------------------------------------------------------------------
-N = 128    | Naive Window Rescan    |   203.7 M/s  |   4.91 ns  | [#######                     ]
-N = 128    | libergodev O(1) Ring   |   288.3 M/s  |   3.47 ns  | [##########                  ] (1.4x faster)
+N = 128    | Naive Window Rescan    |   205.9 M/s |   4.86 ns | [#######                     ]
+N = 128    | libergodev O(1) Ring   |   291.8 M/s |   3.43 ns | [##########                  ] (1.4x faster)
 ---------------------------------------------------------------------------------------
-N = 512    | Naive Window Rescan    |    77.8 M/s  |  12.85 ns  | [##                          ]
-N = 512    | libergodev O(1) Ring   |   342.8 M/s  |   2.92 ns  | [###########                 ] (4.4x faster)
+N = 512    | Naive Window Rescan    |    78.6 M/s |  12.73 ns | [##                          ]
+N = 512    | libergodev O(1) Ring   |   348.1 M/s |   2.87 ns | [############                ] (4.4x faster)
 ---------------------------------------------------------------------------------------
-N = 2048   | Naive Window Rescan    |    21.3 M/s  |  46.95 ns  | [#                           ]
-N = 2048   | libergodev O(1) Ring   |   347.2 M/s  |   2.88 ns  | [############                ] (16.3x faster)
+N = 2048   | Naive Window Rescan    |    21.6 M/s |  46.27 ns | [#                           ]
+N = 2048   | libergodev O(1) Ring   |   351.7 M/s |   2.84 ns | [############                ] (16.3x faster)
 ---------------------------------------------------------------------------------------
-N = 8192   | Naive Window Rescan    |     5.4 M/s  | 184.93 ns  | [#                           ]
-N = 8192   | libergodev O(1) Ring   |   335.9 M/s  |   2.98 ns  | [###########                 ] (62.1x faster)
+N = 8192   | Naive Window Rescan    |     5.5 M/s | 181.94 ns | [#                           ]
+N = 8192   | libergodev O(1) Ring   |   340.8 M/s |   2.93 ns | [###########                 ] (62.0x faster)
 ---------------------------------------------------------------------------------------
-N = 16384  | Naive Window Rescan    |     2.7 M/s  | 372.45 ns  | [#                           ]
-N = 16384  | libergodev O(1) Ring   |   368.2 M/s  |   2.72 ns  | [############                ] (137.1x faster)
+N = 16384  | Naive Window Rescan    |     2.7 M/s | 363.82 ns | [#                           ]
+N = 16384  | libergodev O(1) Ring   |   372.5 M/s |   2.68 ns | [#############               ] (135.5x faster)
 ---------------------------------------------------------------------------------------
 ```
 
