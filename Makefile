@@ -55,5 +55,5 @@ pdf:
 	cd docs && $(LATEX) -interaction=nonstopmode symbolic_ergodeviation.tex && $(LATEX) -interaction=nonstopmode symbolic_ergodeviation.tex
 
 clean:
-	rm -rf $(BUILD_DIR) docs/*.aux docs/*.log docs/*.out $(PDF_OUT)
+	rm -rf $(BUILD_DIR) docs/*.aux docs/*.log docs/*.out
 	

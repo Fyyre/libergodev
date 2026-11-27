@@ -40,8 +40,59 @@ def verify_coupling(coupling, mu, nu):
     return sum(mass * d_pair(u, v) for (u, v), mass in coupling.items())
 
 
-def sinkhorn_w1(mu_counts, total_pairs, nu_float, dist_mat, reg=0.002, iters=150):
-    """Fast standard-library log-domain Sinkhorn solver for finite-window Monte Carlo."""
+def _marginal_residual(mu, nu, dist_mat, f, g, reg):
+    """L1 row and column error of the current scaling. A coupling has residual 0."""
+    import math
+
+    residual = 0.0
+    for i in range(9):
+        if mu[i] <= 0.0:
+            continue
+        vals = [(f[i] + g[j] - dist_mat[i][j]) / reg for j in range(9) if nu[j] > 0.0]
+        mval = max(vals)
+        row = math.exp(mval) * sum(math.exp(v - mval) for v in vals)
+        residual += abs(row - mu[i])
+    for j in range(9):
+        if nu[j] <= 0.0:
+            continue
+        vals = [(f[i] + g[j] - dist_mat[i][j]) / reg for i in range(9) if mu[i] > 0.0]
+        mval = max(vals)
+        col = math.exp(mval) * sum(math.exp(v - mval) for v in vals)
+        residual += abs(col - nu[j])
+    return residual
+
+
+def _sinkhorn_sweep(mu, nu_float, dist_mat, f, g, log_mu, log_nu, reg, iters, tol):
+    import math
+
+    residual = 1.0
+    for _ in range(iters):
+        for i in range(9):
+            if mu[i] <= 0.0:
+                f[i] = -1e30
+                continue
+            vals = [(g[j] - dist_mat[i][j]) / reg for j in range(9) if nu_float[j] > 0.0]
+            mval = max(vals)
+            f[i] = reg * (
+                log_mu[i] - (mval + math.log(sum(math.exp(v - mval) for v in vals)))
+            )
+        for j in range(9):
+            if nu_float[j] <= 0.0:
+                g[j] = -1e30
+                continue
+            vals = [(f[i] - dist_mat[i][j]) / reg for i in range(9) if mu[i] > 0.0]
+            mval = max(vals)
+            g[j] = reg * (
+                log_nu[j] - (mval + math.log(sum(math.exp(v - mval) for v in vals)))
+            )
+        residual = _marginal_residual(mu, nu_float, dist_mat, f, g, reg)
+        if residual <= tol:
+            break
+    return residual
+
+
+def sinkhorn_w1(mu_counts, total_pairs, nu_float, dist_mat, reg=0.05, iters=2500, tol=5e-3):
+    """Log-domain Sinkhorn. Returns a cost only after the plan is a coupling."""
     import math
 
     mu = [c / total_pairs for c in mu_counts]
@@ -50,30 +101,22 @@ def sinkhorn_w1(mu_counts, total_pairs, nu_float, dist_mat, reg=0.002, iters=150
     f = [0.0] * 9
     g = [0.0] * 9
     log_mu = [math.log(m) if m > 0.0 else -1e30 for m in mu]
-    log_nu = [math.log(n) for n in nu_float]
-
-    for _ in range(iters):
-        for i in range(9):
-            if mu[i] <= 0.0:
-                f[i] = -1e30
-                continue
-            vals = [(g[j] - dist_mat[i][j]) / reg for j in range(9)]
-            mval = max(vals)
-            f[i] = reg * (
-                log_mu[i] - (mval + math.log(sum(math.exp(v - mval) for v in vals)))
-            )
-        for j in range(9):
-            vals = [(f[i] - dist_mat[i][j]) / reg for i in range(9) if mu[i] > 0.0]
-            mval = max(vals)
-            g[j] = reg * (
-                log_nu[j] - (mval + math.log(sum(math.exp(v - mval) for v in vals)))
-            )
+    log_nu = [math.log(n) if n > 0.0 else -1e30 for n in nu_float]
+    residual = _sinkhorn_sweep(
+        mu, nu_float, dist_mat, f, g, log_mu, log_nu, reg, iters, tol
+    )
+    if residual > tol:
+        raise RuntimeError(
+            "Sinkhorn residual %.3e exceeds %.3e after %d iterations" % (residual, tol, iters)
+        )
 
     w1 = 0.0
     for i in range(9):
         if mu[i] <= 0.0:
             continue
         for j in range(9):
+            if nu_float[j] <= 0.0:
+                continue
             p_ij = math.exp((f[i] + g[j] - dist_mat[i][j]) / reg)
             w1 += p_ij * dist_mat[i][j]
     return w1

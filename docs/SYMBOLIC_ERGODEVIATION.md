@@ -10,7 +10,7 @@ The ingredients used here are standard: a physical (SRB) measure and its symboli
 
 A second formula, the two-sided ratio of Fiedler energies, looks equally plausible from the phrase "penalized by algebraic connectivity" and is rejected in Section 6. On a deterministic rare orbit it shrinks a transport cost of \(4/5\) down to \(4/17\).
 
-Population values in the worked example are exact rational numbers, certified by an explicit coupling and a 1-Lipschitz dual witness. Monte Carlo numbers are labeled as such and come from `scratch/verify_es.py`.
+Population values in the worked example are exact rational numbers, certified by an explicit coupling and a 1-Lipschitz dual witness. Monte Carlo numbers are labeled as such and come from `python/verify_es.py`.
 
 ## 1. Claim
 
@@ -631,7 +631,13 @@ A second sample of 800 baseline windows at the same \(N\) and seed, scored with 
 
 Here \(m^\ell = 9\), \(\ell = 2\), \(D = 3\), \(\kappa = 3/5\), bracket \(= 3 + 2\cdot(3/5)/(2/5) = 6\), \(\eta = 1\). Theorem 8.4 at \(N = 400\) (\(N' = 399\)) produces an expectation proxy near \(0.55\) and a one-sided 5 percent Azuma deviation near \(1.85\). The resulting threshold \((1+\eta)(B_N+t)\) is near \(4.8\), which is larger than every score in the table (\(W_1 \le 3\), so \(\mathcal{E}_S \le 6\)). The inequality is true and too loose to test at this \(N\).
 
-The same closed form, evaluated on a grid of sample sizes, first falls below \(2/5\) (half the alternation score) at \(N = 57000\). Using the joint union bound of Remark 8.3 (splitting the \(0.05\) level as \(\delta_1 = 0.04\) on \(W_1\) and \(\delta_2 = 0.01\) on \(\hat\Delta_N\)) removes the factor of \(2\) on \(B_N\) and drops the same \(2/5\) crossing from \(N = 57000\) down to \(N \approx 16400\). From that \(N\) on, the explicit test "flag when \(\mathcal{E}_S\) exceeds the concentration threshold at level \(0.05\)" has false-alarm probability at most \(0.05\) under the baseline and fires on the alternation, whose score is \(4/5\) for every \(N\). The Monte Carlo separation at \(N = 400\) is real in the sample and is not yet the separation proved by the Azuma constant.
+The same closed form, evaluated on a grid of sample sizes, first falls below \(2/5\) (half the alternation score) at \(N = 57000\). The joint product in Remark 8.3, with the \(0.05\) level split as \(\delta_1 = 0.04\) on \(W_1\) and \(\delta_2 = 0.01\) on \(\hat\Delta_N\),
+
+\[
+(B_N + t)\left(1 + \eta \frac{s}{\lambda_2}\right),
+\]
+
+crosses \(2/5\) at \(N = 27971\). At \(N = 16400\) that product is still about \(0.565\): \(B_N + t\) alone is already under \(2/5\), but \(s/\lambda_2\) is still about \(0.47\), so the defect multiplier has not yet dropped out. From \(N = 27971\) on, the explicit test "flag when \(\mathcal{E}_S\) exceeds the concentration threshold at level \(0.05\)" has false-alarm probability at most \(0.05\) under the baseline and fires on the alternation, whose score is \(4/5\) for every \(N\). A Freedman threshold that uses the proved proxy \(\mathrm{Var}(W_1) \le B_N^2\) (the library's `ergodev_bounds`) puts the full alternation score \(4/5\) under the threshold at \(N = 9103\), and the half-score bar \(2/5\) at \(N = 36258\). The Monte Carlo separation at \(N = 400\) is real in the sample and is not yet any of these sufficient conditions. The operating cutoff at that scale is an empirical quantile of held-out baseline windows.
 
 The empirical mean of \(W_1\) on baseline windows was about \(0.050\), against an expectation proxy \(B_N \approx 0.55\). The gap is the price of Cauchy-Schwarz over all nine words and of Azuma's quadratic tail. It is recorded so the proxy is not mistaken for a typical value.
 
@@ -658,7 +664,7 @@ A coarser partition quotients the symbol metric, so distances and \(W_p\) fall. 
 
 \(\nu\) estimated from a short or non-representative corpus moves the target. Corollary 8.5 is the corresponding error term. If the trusted corpus already mixes several regimes, the reference \(\nu\) is a mixture, and a window that sits in one regime can score as a deviation from the mixture.
 
-The Azuma threshold is explicit and conservative. On the chain of Section 9 it becomes a separating test near \(N = 57000\) (or \(N \approx 16400\) under the joint bound of Remark 8.3) at the 5 percent level, while samples already separate at a few hundred symbols. Using the Azuma proxy as an operational alarm at moderate \(N\) will not fire on the alternatives in the table, because the threshold lies above them.
+The Azuma threshold is explicit and conservative. On the chain of Section 9 it becomes a separating test near \(N = 57000\) at the 5 percent level for the half-alternation bar \(2/5\), or at \(N = 27971\) under the joint product of Remark 8.3. The Freedman proxy \(\mathrm{Var}(W_1) \le B_N^2\) separates the alternation score \(4/5\) near \(N = 9103\). Samples already separate at a few hundred symbols. Using any of these proxies as an operational alarm at moderate \(N\) will not fire on the alternatives in the table, because the threshold lies above them. The operating cutoff is the empirical quantile of held-out baseline windows.
 
 No SRB theorem is claimed for kernels, protocol state machines, or counter traces. For those, \(\mathcal{E}_S\) is a comparison of a finite symbolic window with a chosen reference measure, plus a shortfall against the algebraic connectivity of that reference's allowed graph.
 
@@ -668,7 +674,7 @@ No SRB theorem is claimed for kernels, protocol state machines, or counter trace
 2. Estimate the \(\ell\)-marginal \(\hat\nu\) and the flux weights \(w\). Build \(L\). Compute \(\lambda_2\) and \(\psi\).
 3. On each window, form \(\hat\mu\) and \(\hat\Delta_N\) (forbidden transitions contribute \(0\) to the energy).
 4. Compute \(W_p(\hat\mu, \hat\nu)\) and multiply by \(1 + \eta (\lambda_2 - \hat\Delta_N)_+/\lambda_2\).
-5. Compare with the Theorem 8.4 / Remark 8.3 threshold if \(N\) is large enough that the threshold lies under the deviation of interest, and add the corpus term from Corollary 8.5. At moderate \(N\), treat the threshold as a proved sufficient bound, and calibrate an operational cutoff on held-out baseline windows. Report that calibration as empirical.
+5. Compare with the Theorem 8.4 / Remark 8.3 threshold if \(N\) is large enough that the threshold lies under the deviation of interest, and add the corpus term from Corollary 8.5. At moderate \(N\) the Azuma number (and the Freedman number with proxy \(B_N^2\)) is only a sufficient bound. The operating cutoff is an empirical quantile of held-out baseline scores at the desired false-alarm level. Report that calibration as empirical. A second arm that is not a function of the \(\ell\)-marginal (a minimum period, or a compressor length), with the false-alarm budget split across the two arms, catches a window whose bigrams match \(\nu_\ell\) and whose symbol string is periodic.
 
 ## References
 
@@ -686,4 +692,4 @@ The following are the classical ingredients. None of them defines \(\mathcal{E}_
 - M. Muskulus and S. Verduyn-Lunel, "Wasserstein distances in the analysis of time series and dynamical systems," Physica D, 2011. Transportation distance between reconstructed invariant measures. Asymptotic, with no finite-window Fiedler factor. They attribute the transportation distance between attractors to earlier work of Moeckel and Murray.
 - A. Riekert, "Convergence rates for empirical measures of Markov chains in dual and Wasserstein distances," Statistics and Probability Letters, 2022. Sharper rates than Theorem 8.4; not required here.
 
-Population arithmetic and the Monte Carlo in Section 9 are reproduced by `scratch/verify_es.py`.
+Population arithmetic and the Monte Carlo in Section 9 are reproduced by `python/verify_es.py`. The Monte Carlo returns a Sinkhorn cost only after the plan's marginal residual is under \(5\cdot 10^{-3}\).

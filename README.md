@@ -54,43 +54,31 @@ Notice rows 3 and 5: both have entropy rate **1 bit** and transport cost **$`3/4
 
 ## Streaming C99 Engine Architecture (`include/ergodev.h`, `src/ergodev.c`)
 
-The C99 library separates corpus fitting from online sliding-window ingestion so that per-event updates run in constant time with **zero heap allocations**:
+The C99 library separates corpus fitting from online sliding-window ingestion. The hot context is caller-allocated (`ergodev_ctx_bytes`) and holds the ring, the counts, the jump table, and, in the dense case, the step LUT. The distance matrix and the Sinkhorn workspace live in a caller-owned `ergodev_scratch_t`. Push and score do not call `malloc`.
 
-* **Zero `malloc` / `free`:** All state lives inside a caller-allocated `ergodev_ctx_t` struct (~34 KB default footprint), suitable for ring-0 callbacks, eBPF user-space ring consumers, or embedded telemetry daemons.
-* **$O(1)$ Per-Symbol Ingestion (`ergodev_push`):** Pushing a new symbol updates the base $`m`$ rolling word index, increments the incoming $`\ell`$ word counter, decrements the outgoing $`\ell`$ word counter from $`N`$ ticks ago, and updates the rolling Fiedler Dirichlet energy via two LUT lookups in **< 10 CPU cycles**.
-* **Stack-Only $`W_1`$ Evaluation (`ergodev_score_sinkhorn`):** Evaluates entropic optimal transport over the $`m^\ell`$ word space on demand without dynamic memory allocation.
+* **Per-symbol ingestion (`ergodev_push_fast`):** the dense path is integer-only. It updates the rolling word, swaps one ring slot, and updates two counters. Dirichlet energy is the count-weighted mean of the jump table, evaluated when a score is requested.
+* **Corpus fit (`ergodev_fit`):** estimates the word marginal, builds the flux Laplacian, and stores algebraic connectivity, the spectral gap, the Dobrushin coefficient, and the maximum squared Fiedler jump. `q_normalize = 1` selects the stationary-mass Fiedler vector. `ergodev_init` rejects a jump table whose mean under the reference is not `lambda_2`.
+* **Certified transport (`ergodev_score`):** log-domain Sinkhorn returns a cost only after the marginal residual is under the caller's tolerance. Otherwise the cost is NaN. `ergodev_screen` skips the solver when the Lemma 8.1 upper bound is already under the alarm level.
+* **Thresholds:** `ergodev_bounds` returns the Azuma sufficient condition, a Freedman threshold with variance proxy `B_N^2`, and the Remark 8.3 joint product. At moderate `N` the operating cutoff is `ergodev_empirical_quantile` on held-out baseline scores.
+* **Sparse words:** if `m^ell` exceeds 128 but the corpus uses at most 127 distinct words, the fit keeps that support plus one sink. That is how block length 3 fits a taxonomy larger than five symbols.
+* **Union alarm (`ergodev_alarm_union`):** fires when the transport score exceeds its cutoff or the symbol window has a period at most `tau_period`. Split the false-alarm budget across the two arms.
+
+### Placement
+
+One `ergodev_thread_slot_t` per thread id, with two contexts. `per_event` takes one symbol per syscall, so a pure rate change does not move the score. `per_quantum` takes one symbol per fixed clock, with symbol 0 meaning idle, so volume is visible. The push helpers only ingest. Score on the caller scratch, off the observation callback.
 
 ---
 
 ## Streaming Benchmark (`make bench`)
 
-Evaluating on a 10,000,000-event stream (query stride = 16 ticks) across window lengths $`N = 128`$ to $`16,384`$:
-
-* **`ergodev_push_fast()` is 100% integer-only (zero FPU instructions):** Transition indexing uses a precomputed 1-cycle state lookup table (`step_lut`), and ring-buffer updates use pure integer increments—making per-event ingestion safe for ring-0 / kernel contexts without `XSAVE`/`FXSAVE` FPU state-save overhead and completely immune to floating-point rounding drift.
-* **Constant $`O(1)`$ latency (~2.7–3.4 ns / event):** throughput stays in the 290–370 million events/sec range on a single core and does not degrade as the window horizon N grows from 128 to 16,384.
+`make bench` times 10,000,000 events, query stride 16, windows 128 through 16,384. Each query is the Lemma 8.1 upper bound, one pass over the word counts. Certified Sinkhorn is checked once on the alternation (it must converge to 0.80) and is not inside the timed loop. On this host the ring stays near 2.6 ns/event while the rescan grows with `N`:
 
 ```text
-=======================================================================================
-  LIBERGODEV STREAMING BENCHMARK: 10,000,000 Events (Query Stride = 16 ticks)
-=======================================================================================
-
-Window N   | Method                 | Throughput   | Latency    | Relative Speed
----------------------------------------------------------------------------------------
-N = 128    | Naive Window Rescan    |   205.9 M/s |   4.86 ns | [#######                     ]
-N = 128    | libergodev O(1) Ring   |   291.8 M/s |   3.43 ns | [##########                  ] (1.4x faster)
----------------------------------------------------------------------------------------
-N = 512    | Naive Window Rescan    |    78.6 M/s |  12.73 ns | [##                          ]
-N = 512    | libergodev O(1) Ring   |   348.1 M/s |   2.87 ns | [############                ] (4.4x faster)
----------------------------------------------------------------------------------------
-N = 2048   | Naive Window Rescan    |    21.6 M/s |  46.27 ns | [#                           ]
-N = 2048   | libergodev O(1) Ring   |   351.7 M/s |   2.84 ns | [############                ] (16.3x faster)
----------------------------------------------------------------------------------------
-N = 8192   | Naive Window Rescan    |     5.5 M/s | 181.94 ns | [#                           ]
-N = 8192   | libergodev O(1) Ring   |   340.8 M/s |   2.93 ns | [###########                 ] (62.0x faster)
----------------------------------------------------------------------------------------
-N = 16384  | Naive Window Rescan    |     2.7 M/s | 363.82 ns | [#                           ]
-N = 16384  | libergodev O(1) Ring   |   372.5 M/s |   2.68 ns | [#############               ] (135.5x faster)
----------------------------------------------------------------------------------------
+N = 128    ring 355 M/s   2.82 ns    1.5x
+N = 512    ring 374 M/s   2.67 ns    5.0x
+N = 2048   ring 376 M/s   2.66 ns   19.2x
+N = 8192   ring 386 M/s   2.59 ns   77.3x
+N = 16384  ring 384 M/s   2.61 ns  153.2x
 ```
 
 ## Quick Start
@@ -108,16 +96,18 @@ make check
 ## Repository Layout
 
 ```text
-├── Makefile                        # Builds C99 library, runs tests, compiles LaTeX PDF
+├── Makefile                        # Builds C99 library, runs tests
 ├── README.md                       # Overview and quick-start guide
-├── SYMBOLIC_ERGODEVIATION.md       # Full Markdown mathematical specification
+├── CHANGES.MD						# Recent changes
 ├── docs/
-│   └── symbolic_ergodeviation.pdf  # Manuscript
+│   ├── SYMBOLIC_ERGODEVIATION.md   # Mathematical specification
+│   └── symbolic_ergodeviation.pdf  # Manuscript PDF
 ├── include/
-│   └── ergodev.h                   # Zero-allocation C99 API header
+│   └── ergodev.h                   # Caller-owned context and scratch API
 ├── src/
-│   └── ergodev.c                   # O(1) ring-buffer engine + built-in self-test
+│   ├── ergodev.c                   # Ring, fit, score, bounds, alarm, self-test
+│   └── bench_ergodev.c             # Ring vs rescan, Lemma 8.1 screen
 └── python/
-    └── verify_es.py                # Exact rational primal-dual verifier & Monte Carlo suite
+    └── verify_es.py                # Exact rational certificates and residual-checked Monte Carlo
 
 ```
