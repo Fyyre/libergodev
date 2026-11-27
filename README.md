@@ -98,7 +98,7 @@ make check
 ```text
 ├── Makefile                        # Builds C99 library, runs tests
 ├── README.md                       # Overview and quick-start guide
-├── CHANGES.MD						# Recent changes
+├── CHANGES.MD                      # Recent changes
 ├── docs/
 │   ├── SYMBOLIC_ERGODEVIATION.md   # Mathematical specification
 │   └── symbolic_ergodeviation.pdf  # Manuscript PDF
